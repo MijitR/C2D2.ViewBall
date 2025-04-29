@@ -4,7 +4,7 @@ Complex number propagating and branchless convolutional neural network in Zig
 
 Yo this is cool. Did I mention it's branchless?
 
-Example creation:
+Example creation (Used to classify some cx28x28 images):
 
-![Creation Example](Screenshot from 2025-04-29 13-36-42.png)
+![Creation Example](images/SampleUsage.png)
 
