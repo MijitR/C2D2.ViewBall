@@ -1,5 +1,5 @@
 # C2D2.ViewBall
-Complex number propagating and branchless FFT-based convolutional neural network in Zig
+Dense complex number propagating and branchless FFT-based convolutional neural network in Zig utilizing dynamic padding
 
 Yo this is cool. Did I mention it's branchless?
 (The network is, but there is one base case in the image processing class's recursion with an 'if' statement).
