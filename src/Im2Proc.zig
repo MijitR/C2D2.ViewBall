@@ -5,10 +5,8 @@ const Numerals = @import("Complex.zig");
 const Complex = Numerals.Complex;
 
 pub const FookMe = error {
-    ScratchedMyBallsTooMuch,
     ScratchedMisguidedly,
     EmptyInput,
-    BangedMyPeePeeTooHard,
     Overflow
 };
 
