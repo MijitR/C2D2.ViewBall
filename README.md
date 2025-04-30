@@ -1,8 +1,7 @@
 # C2D2.ViewBall
-Dense complex number propagating and branchless FFT-based convolutional neural network in Zig utilizing dynamic padding
+Dense complex number propagating and relatively branchless FFT-based convolutional neural network in Zig utilizing dynamic padding
 
-Yo this is cool. Did I mention it's branchless?
-(The network is, but there is one base case in the image processing class's recursion with an 'if' statement).
+Yo this is cool
 
 Example creation (Used to classify some cx28x28 images):
 
