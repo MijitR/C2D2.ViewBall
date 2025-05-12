@@ -34,65 +34,50 @@ pub fn complexConj(a: []Complex) void {
 
 //Alot (((scratch.len-N) - (N))>>1) Complexes
 pub fn fft1D(x: []Complex, width: usize, paddedWidth: usize, scratch: []Complex) []Complex {
-        const N = (width + (width & 1)) >> 1;
+    const N = (width + (width & 1)) >> 1;
         
-        if ((paddedWidth) == 1) {
-            return x;
-        }
-        
-        assert(paddedWidth & (paddedWidth - 1) == 0);
-        
-        const even = scratch[0..((paddedWidth) >> 1)];
-        const odd = scratch[((paddedWidth) >> 1)..(paddedWidth)];
-        
-        //Dynamic padding and splitting of signal x
-        for (0..(N)) |rk| {
-            even[rk] = x[2 * rk];
-        }
-        @memset(even[N..], Complex{ .real = 0.0, .imag = 0.0 });
-        for (0..(width >> 1)) |rk| {
-            odd[rk] = x[2 * rk + 1];
-        }
-        @memset(odd[(width >> 1)..], Complex{ .real = 0.0, .imag = 0.0 });
-        
-        var offset = (paddedWidth);
-        
-        var result = scratch[offset..(offset + paddedWidth)];
-        
-        offset += paddedWidth;
-        
-        const halfMarker = (((scratch.len - offset)) >> 1); // (((scratch.len-offset)&1)^1);
-        
-        const oddLenOF = @subWithOverflow(width, paddedWidth >> 1);
-        const oddLen = oddLenOF[0] * (~oddLenOF[1]);
-        const evenLen = @min(paddedWidth >> 1, width);
-        
-        const evenFFT = fft1D((even), evenLen, paddedWidth >> 1, scratch[offset..(offset + halfMarker)]);
-        const oddFFT = fft1D((odd), oddLen, paddedWidth >> 1, scratch[(offset + halfMarker)..(offset + 2 * halfMarker)]);
-        
-        for (0..((paddedWidth >> 1))) |k| {
-            const waveNumber = @as(f64, @floatFromInt(k)) / @as(f64, @floatFromInt(paddedWidth));
-            const multiplier = Complex{ .real = @cos(2 * std.math.pi * waveNumber), .imag = -@sin(2 * std.math.pi * waveNumber) };
-            
-            const t = oddFFT[k].multiply(multiplier);
-            result[k] = evenFFT[k].add(t);
-            result[k + (paddedWidth >> 1)] = evenFFT[k].subtract(t);
-        }
-        
-        return result;
+    if ((paddedWidth) == 1) {
+        return x;
     }
+        
+    assert(paddedWidth & (paddedWidth - 1) == 0);
+    const even = scratch[0..((paddedWidth) >> 1)];
+    const odd = scratch[((paddedWidth) >> 1)..(paddedWidth)];
+        
+    //Dynamic padding and splitting of signal x
+    for (0..(N)) |rk| {
+        even[rk] = x[2 * rk];
+    }
+    @memset(even[N..], Complex{ .real = 0.0, .imag = 0.0 });
+    for (0..(width >> 1)) |rk| {
+        odd[rk] = x[2 * rk + 1];
+    }
+    @memset(odd[(width >> 1)..], Complex{ .real = 0.0, .imag = 0.0 });
+        
+    var offset = (paddedWidth);
+        
+    var result = scratch[offset..(offset + paddedWidth)];
+       
+    offset += paddedWidth;
+       
+    const halfMarker = (((scratch.len - offset)) >> 1); // (((scratch.len-offset)&1)^1);
+        
+    const oddLenOF = @subWithOverflow(width, paddedWidth >> 1);
+    const oddLen = oddLenOF[0] * (~oddLenOF[1]);
+    const evenLen = @min(paddedWidth >> 1, width);
+        
     const evenFFT = fft1D((even), evenLen, paddedWidth >> 1, scratch[offset..(offset + halfMarker)]);
     const oddFFT = fft1D((odd), oddLen, paddedWidth >> 1, scratch[(offset + halfMarker)..(offset + 2 * halfMarker)]);
-
+        
     for (0..((paddedWidth >> 1))) |k| {
         const waveNumber = @as(f64, @floatFromInt(k)) / @as(f64, @floatFromInt(paddedWidth));
         const multiplier = Complex{ .real = @cos(2 * std.math.pi * waveNumber), .imag = -@sin(2 * std.math.pi * waveNumber) };
-
+            
         const t = oddFFT[k].multiply(multiplier);
         result[k] = evenFFT[k].add(t);
         result[k + (paddedWidth >> 1)] = evenFFT[k].subtract(t);
     }
-
+        
     return result;
 }
 
