@@ -38,127 +38,175 @@ pub fn complexConj(a: []Complex) void {
 
 
 pub fn fft1D(x: []Complex, width: usize, paddedWidth: usize, scratch: []Complex) []Complex {
-    @setFloatMode(.optimized);
+    const N = (width + (width & 1)) >> 1;
 
-    const N = (width + (width&1)) >> 1;
-
-    if((paddedWidth)==1) {
+    if ((paddedWidth) == 1) {
         return x;
     }
 
-    assert(paddedWidth & (paddedWidth-1) == 0);
+    assert(paddedWidth & (paddedWidth - 1) == 0);
 
-    const even = scratch[0..((paddedWidth)>>1)];
-    const odd = scratch[((paddedWidth)>>1)..(paddedWidth)];
+    const even = scratch[0..((paddedWidth) >> 1)];
+    const odd = scratch[((paddedWidth) >> 1)..(paddedWidth)];
 
     //Dynamic padding and splitting of signal x
-    for(0..(N)) |rk| {
-        even[rk] = x[2*rk];
+    for (0..(N)) |rk| {
+        even[rk] = x[2 * rk];
     }
-    @memset(even[N..], Complex{.real = 0.0, .imag = 0.0});
-    for(0..(width>>1)) |rk| {
-        odd[rk] = x[2*rk+1];
+    @memset(even[N..], Complex{ .real = 0.0, .imag = 0.0 });
+    for (0..(width >> 1)) |rk| {
+        odd[rk] = x[2 * rk + 1];
     }
-    @memset(odd[(width>>1)..], Complex{.real = 0.0, .imag = 0.0});
+    @memset(odd[(width >> 1)..], Complex{ .real = 0.0, .imag = 0.0 });
 
     var offset = (paddedWidth);
 
-    var result = scratch[offset..(offset+paddedWidth)];
+    var result = scratch[offset..(offset + paddedWidth)];
 
     offset += paddedWidth;
 
-    const halfMarker = (((scratch.len-offset))>>1) - ((scratch.len-offset)&1);
+    const halfMarker = (((scratch.len - offset)) >> 1); // (((scratch.len-offset)&1)^1);
 
-    const evenFFT = fft1D((even), N, paddedWidth>>1, scratch[offset..(offset+halfMarker)]);
-    const oddFFT = fft1D((odd), N,  paddedWidth>>1, scratch[(offset+halfMarker)..]);
+    const oddLenOF = @subWithOverflow(width, paddedWidth >> 1);
+    const oddLen = oddLenOF[0] * (~oddLenOF[1]);
+    const evenLen = @min(paddedWidth >> 1, width);
+    pub fn fft1D(x: []Complex, width: usize, paddedWidth: usize, scratch: []Complex) []Complex {
+        const N = (width + (width & 1)) >> 1;
+        
+        if ((paddedWidth) == 1) {
+            return x;
+        }
+        
+        assert(paddedWidth & (paddedWidth - 1) == 0);
+        
+        const even = scratch[0..((paddedWidth) >> 1)];
+        const odd = scratch[((paddedWidth) >> 1)..(paddedWidth)];
+        
+        //Dynamic padding and splitting of signal x
+        for (0..(N)) |rk| {
+            even[rk] = x[2 * rk];
+        }
+        @memset(even[N..], Complex{ .real = 0.0, .imag = 0.0 });
+        for (0..(width >> 1)) |rk| {
+            odd[rk] = x[2 * rk + 1];
+        }
+        @memset(odd[(width >> 1)..], Complex{ .real = 0.0, .imag = 0.0 });
+        
+        var offset = (paddedWidth);
+        
+        var result = scratch[offset..(offset + paddedWidth)];
+        
+        offset += paddedWidth;
+        
+        const halfMarker = (((scratch.len - offset)) >> 1); // (((scratch.len-offset)&1)^1);
+        
+        const oddLenOF = @subWithOverflow(width, paddedWidth >> 1);
+        const oddLen = oddLenOF[0] * (~oddLenOF[1]);
+        const evenLen = @min(paddedWidth >> 1, width);
+        
+        const evenFFT = fft1D((even), evenLen, paddedWidth >> 1, scratch[offset..(offset + halfMarker)]);
+        const oddFFT = fft1D((odd), oddLen, paddedWidth >> 1, scratch[(offset + halfMarker)..(offset + 2 * halfMarker)]);
+        
+        for (0..((paddedWidth >> 1))) |k| {
+            const waveNumber = @as(f64, @floatFromInt(k)) / @as(f64, @floatFromInt(paddedWidth));
+            const multiplier = Complex{ .real = @cos(2 * std.math.pi * waveNumber), .imag = -@sin(2 * std.math.pi * waveNumber) };
+            
+            const t = oddFFT[k].multiply(multiplier);
+            result[k] = evenFFT[k].add(t);
+            result[k + (paddedWidth >> 1)] = evenFFT[k].subtract(t);
+        }
+        
+        return result;
+    }
+    const evenFFT = fft1D((even), evenLen, paddedWidth >> 1, scratch[offset..(offset + halfMarker)]);
+    const oddFFT = fft1D((odd), oddLen, paddedWidth >> 1, scratch[(offset + halfMarker)..(offset + 2 * halfMarker)]);
 
-    for(0..((paddedWidth>>1))) |k| {
+    for (0..((paddedWidth >> 1))) |k| {
         const waveNumber = @as(f64, @floatFromInt(k)) / @as(f64, @floatFromInt(paddedWidth));
-        const multiplier = Complex {
-            .real = @cos(2*std.math.pi*waveNumber),
-            .imag = -@sin(2*std.math.pi*waveNumber)
-        };
+        const multiplier = Complex{ .real = @cos(2 * std.math.pi * waveNumber), .imag = -@sin(2 * std.math.pi * waveNumber) };
 
         const t = oddFFT[k].multiply(multiplier);
         result[k] = evenFFT[k].add(t);
-        result[k+(paddedWidth>>1)] = evenFFT[k].subtract(t);
+        result[k + (paddedWidth >> 1)] = evenFFT[k].subtract(t);
     }
 
     return result;
 }
 
-pub fn ifft1D(x :[]Complex, width:usize,  paddedWidth: usize, scratch: []Complex) []Complex {
+pub fn ifft1D(x: []Complex, ogWidth: usize, paddedWidth: usize, scratch: []Complex) []Complex {
+    const newX = complexConjFresh(x, scratch[0..x.len]);
 
-    complexConj(x);
+    var y = fft1D(newX, paddedWidth, paddedWidth, scratch[newX.len..]);
 
-    var y = fft1D(x, width, paddedWidth, scratch);
-
-    const lf = @as(f64, @floatFromInt(x.len));
-    for(0..paddedWidth) |i| {
-        y[i] = (@constCast(&y[i].divide(lf))).negateImagFresh();
+    const lf = @as(f64, @floatFromInt(ogWidth));
+    for (0..paddedWidth) |i| {
+        y[i] = ((y[i])).negateImagFresh().divide(lf);
     }
 
     return y;
-
 }
 
-pub fn fft2D(matrix :[]Complex, rows: usize, cols: usize, depth: usize, paddedRowCount: usize, paddedColCount: usize, scratch: []Complex) []Complex {
-
-    assert(matrix.len == rows*cols*depth);
+pub fn fft2DT(matrix: []Complex, rows: usize, cols: usize, depth: usize, paddedRowCount: usize, paddedColCount: usize, scratch: []Complex) []Complex {
+    assert(matrix.len == rows * cols * depth);
     assert(paddedRowCount >= rows and paddedColCount >= cols);
 
     //INVESTIGATE ROW MAJOR
-    var transposeish = scratch[0..paddedRowCount*paddedColCount*depth];
-    @memset(transposeish, Complex{.real=0.0,.imag=0.0});
+    var transposeish = scratch[0 .. paddedRowCount * paddedColCount * depth];
+    @memset(transposeish, Complex{ .real = 0.0, .imag = 0.0 });
 
-    for(0..depth) |z| {
-        for(0..rows) |r| {
-            const rowFFT = fft1D(matrix[((r*cols) + z*rows*cols)..((r+1)*cols + z*rows*cols)], cols, paddedColCount, scratch[paddedRowCount*paddedColCount*depth..]);
-            for(0..paddedColCount) |c| {
+    const scratchReqPerRow = 2 * paddedColCount * @ctz(paddedColCount);
+
+    for (0..depth) |z| {
+        for (0..rows) |r| {
+            const rowFFT = fft1D(matrix[((r * cols) + z * rows * cols)..((r + 1) * cols + z * rows * cols)], cols, paddedColCount, scratch[(paddedRowCount * paddedColCount * depth)..(paddedRowCount * paddedColCount * depth + scratchReqPerRow)]);
+            for (0..paddedColCount) |c| {
                 //AUTO-TRANSPOSE TO ROW MINOR
-                transposeish[c*paddedRowCount + r + z*paddedRowCount*paddedColCount] = rowFFT[c];
+                //                 transposeish[c * paddedRowCount + r + z * paddedRowCount * paddedColCount] = rowFFT[c];
+                transposeish[r * paddedColCount + c + z * paddedColCount * paddedRowCount] = rowFFT[c];
             }
         }
     }
 
-    var transposeIsh = scratch[(depth*paddedRowCount*paddedColCount)..(depth*(paddedRowCount*paddedColCount+paddedRowCount*paddedColCount))];
+    var transposeIsh = scratch[(depth * paddedRowCount * paddedColCount + scratchReqPerRow)..((depth * paddedRowCount * paddedColCount + scratchReqPerRow + paddedRowCount * paddedColCount * depth))];
+    var transpose = nillerPoseSeveral(transposeish, depth, paddedRowCount, scratch[((depth * paddedRowCount * paddedColCount + scratchReqPerRow + paddedRowCount * paddedColCount * depth))..(((depth * paddedRowCount * paddedColCount + scratchReqPerRow + paddedRowCount * paddedColCount * depth)) + paddedRowCount * paddedColCount * depth)]);
 
-    const workspace = scratch[(depth*(paddedRowCount*paddedColCount+paddedRowCount*paddedColCount))..];
+    const scratchReqPerCol = 2 * paddedRowCount * @ctz(paddedRowCount);
 
+    const workspace = scratch[(((depth * paddedRowCount * paddedColCount + scratchReqPerRow + paddedRowCount * paddedColCount * depth)) + paddedRowCount * paddedColCount * depth)..((((depth * paddedRowCount * paddedColCount + scratchReqPerRow + paddedRowCount * paddedColCount * depth)) + paddedRowCount * paddedColCount * depth) + scratchReqPerCol)];
     //INVESTIGATE ROW MINOR
-     for(0..depth) |z| {
-        for(0..(paddedColCount)) |c| {
-            const colFFT = fft1D(transposeish[(c*paddedRowCount + z*paddedRowCount*paddedColCount)..(c*paddedRowCount+paddedRowCount + z*paddedRowCount*paddedColCount)], paddedRowCount, paddedRowCount, workspace);
-            for(0..paddedRowCount) |r| {
+    for (0..depth) |z| {
+        for (0..(paddedColCount)) |c| {
+            const colFFT = fft1D(transpose[(c * paddedRowCount + z * paddedRowCount * paddedColCount)..(c * paddedRowCount + paddedRowCount + z * paddedRowCount * paddedColCount)], paddedRowCount, paddedRowCount, workspace);
+            for (0..paddedRowCount) |r| {
                 //Switch to ROW MAJOR MAPPING
-                //transposeIsh[r*paddedColCount + c + z*paddedRowCount*paddedColCount] = colFFT[r];
+                //                 transposeIsh[r * paddedColCount + c + z * paddedRowCount * paddedColCount] = colFFT[r];
 
-                //YO DUDE WE CAN PREVENT A HARD TRANSPOSITION IN THE IFFT BY LEAVING THIS TRANSPOSED
+                //YO DUDE WE CAN PREVENT A HARD TRANSPOSITION IN THE IFFT BY LEAVING THIS TRANSPOSED (LEAST SIGNIFICANT: ROW)
                 //THIS WORKS BECAUSE OF THE SPECIFIC USE CASE (Correlation)
-                transposeIsh[c*paddedRowCount + r + z*paddedRowCount*paddedColCount] = colFFT[r];
+                transposeIsh[c * paddedRowCount + r + z * paddedRowCount * paddedColCount] = colFFT[r];
             }
         }
-     }
+    }
 
     return transposeIsh;
-
 }
 
 //(((rows-j)*cols)-i) mirror pattern?
 
-pub fn ifft2D(matrix :[]Complex, depth: usize, paddedRowCount: usize, paddedColCount: usize, scratch: []Complex) []Complex {
-
+pub fn ifft2D(matrix: []Complex, depth: usize, rows: usize, cols: usize, paddedRowCount: usize, paddedColCount: usize, scratch: []Complex) []Complex {
     //This takes like half the method time?
-    //var transposeish = nillerPoseSeveral(matrix, depth, paddedRowCount, scratch[0..(paddedRowCount*paddedColCount*depth)]);
-    const fuckall = scratch[0..(paddedRowCount*paddedColCount*depth)];
+    //     var transposeish = nillerPoseSeveral(matrix, depth, paddedRowCount, scratch[0..(paddedRowCount * paddedColCount * depth)]);
+    //const fuckall = scratch[(paddedRowCount * paddedColCount * depth) .. 2 * (paddedRowCount * paddedColCount * depth)];
+    const fuckall = scratch[0..(paddedRowCount * paddedColCount * depth)];
 
+    const scratchReqPerCol = 2 * paddedRowCount * @ctz(paddedRowCount) + paddedRowCount;
     //Investigate row-minor (Alas, we need the columns of the row-major format (that we seeemingly arbitrarily made), hence the transposition... again)
-    for(0..depth) |z| {
-        for(0..(paddedColCount)) |c| {
-            const colFFT = ifft1D(matrix[((c*paddedRowCount) + z*paddedRowCount*paddedColCount)..((c+1)*paddedRowCount + z*paddedRowCount*paddedColCount)], paddedRowCount, paddedRowCount, scratch[(paddedRowCount*paddedColCount*depth)..(4*paddedColCount*paddedRowCount*depth)]);
-            for(0..paddedRowCount) |r| {
+    for (0..depth) |z| {
+        for (0..(paddedColCount)) |c| {
+            const colFFT = ifft1D(matrix[((c * paddedRowCount) + z * paddedRowCount * paddedColCount)..((c + 1) * paddedRowCount + z * paddedRowCount * paddedColCount)], rows, paddedRowCount, scratch[(paddedRowCount * paddedColCount * depth)..(paddedColCount * paddedRowCount * depth + scratchReqPerCol)]);
+            for (0..paddedRowCount) |r| {
                 //Populate row-major to effectively transpose the row-minor mapping and avoid the manual transpose
-                fuckall[r*paddedColCount + c + z*paddedRowCount*paddedColCount] = colFFT[r];
+                fuckall[r * paddedColCount + c + z * paddedRowCount * paddedColCount] = colFFT[r];
             }
         }
     }
@@ -166,19 +214,20 @@ pub fn ifft2D(matrix :[]Complex, depth: usize, paddedRowCount: usize, paddedColC
     // We successfully avoided this!
     //const shitMyFaceOff = nillerPoseSeveral(fuckall, depth, paddedColCount, scratch[(2*paddedRowCount*paddedColCount*depth + 3*paddedRowCount)..(//(2*paddedRowCount*paddedColCount*depth + 3*paddedRowCount) + paddedRowCount*paddedColCount*depth)]);
 
-    var offset = ((2*paddedRowCount*paddedColCount*depth));
+    var offset = ((paddedRowCount * paddedColCount * depth + scratchReqPerCol));
 
-    var transposeIsh = scratch[(offset)..(offset + paddedRowCount*paddedColCount*depth)];
+    var transposeIsh = scratch[(offset)..(offset + paddedRowCount * paddedColCount * depth)];
 
-    offset += paddedRowCount*paddedColCount*depth;
+    offset += paddedRowCount * paddedColCount * depth;
 
+    const scratchReqPerRow = 2 * paddedColCount * @ctz(paddedColCount) + paddedColCount;
     //Investigate ROW MAJOR (
-    for(0..depth) |z| {
-        for(0..paddedRowCount) |r| {
-            const rowFFT = ifft1D(fuckall[(r*paddedColCount + z*paddedRowCount*paddedColCount)..(r*paddedColCount+paddedColCount + z*paddedRowCount*paddedColCount)], paddedColCount, paddedColCount, scratch[offset..]);
-            for(0..paddedColCount) |c| {
+    for (0..depth) |z| {
+        for (0..paddedRowCount) |r| {
+            const rowFFT = ifft1D(fuckall[(r * paddedColCount + z * paddedRowCount * paddedColCount)..(r * paddedColCount + paddedColCount + z * paddedRowCount * paddedColCount)], cols, paddedColCount, scratch[offset..(offset + scratchReqPerRow)]);
+            for (0..paddedColCount) |c| {
                 //Maintain ROW MAJOR
-                transposeIsh[r*paddedColCount + c + z*paddedRowCount*paddedColCount] = rowFFT[c];
+                transposeIsh[r * paddedColCount + c + z * paddedRowCount * paddedColCount] = rowFFT[c];
             }
         }
     }
@@ -186,9 +235,7 @@ pub fn ifft2D(matrix :[]Complex, depth: usize, paddedRowCount: usize, paddedColC
     //signal ready: ROW MAJOR
 
     return transposeIsh;
-
 }
-
 pub fn nillerPoseWriteForward(matrix: []Complex, scratch: []Complex, rows: usize) []Complex {
 
     const cols = matrix.len / rows;
