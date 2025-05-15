@@ -62,12 +62,8 @@ pub fn fft1D(x: []Complex, width: usize, paddedWidth: usize, scratch: []Complex)
        
     const halfMarker = (((scratch.len - offset)) >> 1); // (((scratch.len-offset)&1)^1);
         
-    const oddLenOF = @subWithOverflow(width, paddedWidth >> 1);
-    const oddLen = oddLenOF[0] * (~oddLenOF[1]);
-    const evenLen = @min(paddedWidth >> 1, width);
-        
-    const evenFFT = fft1D((even), evenLen, paddedWidth >> 1, scratch[offset..(offset + halfMarker)]);
-    const oddFFT = fft1D((odd), oddLen, paddedWidth >> 1, scratch[(offset + halfMarker)..(offset + 2 * halfMarker)]);
+    const evenFFT = fft1D((even), N, paddedWidth >> 1, scratch[offset..(offset + halfMarker)]);
+    const oddFFT = fft1D((odd), width>>1, paddedWidth >> 1, scratch[(offset + halfMarker)..(offset + 2 * halfMarker)]);
         
     for (0..((paddedWidth >> 1))) |k| {
         const waveNumber = @as(f64, @floatFromInt(k)) / @as(f64, @floatFromInt(paddedWidth));
